@@ -1,0 +1,1916 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Inventaris & Peminjaman - UPTD SPF SMP Negeri 1 Bondowoso</title>
+  
+  <!-- Inline SVG Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><polyline points='3.27 6.96 12 12.01 20.73 6.96'/><line x1='12' y1='22.08' x2='12' y2='12'/></svg>">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: 'var(--color-brand-50, #eff6ff)',
+              100: 'var(--color-brand-100, #dbeafe)',
+              500: 'var(--color-brand-500, #3b82f6)',
+              600: 'var(--color-brand-600, #2563eb)',
+              700: 'var(--color-brand-700, #1d4ed8)',
+              800: 'var(--color-brand-800, #1e40af)',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- jsPDF & QRCode.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- SheetJS CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    :root {
+      --color-brand-50: #eff6ff;
+      --color-brand-100: #dbeafe;
+      --color-brand-500: #3b82f6;
+      --color-brand-600: #2563eb;
+      --color-brand-700: #1d4ed8;
+      --color-brand-800: #1e40af;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    .skeleton-box {
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white bg-slate-100 bg-cover bg-center bg-fixed transition-all duration-300" id="appBody">
+
+  <div id="topBanner" class="hidden fixed top-0 left-0 right-0 z-[2000] bg-amber-600 text-white px-4 py-2 text-xs md:text-sm font-medium shadow-md flex justify-between items-center transition-all">
+    <div class="flex items-center space-x-2">
+      <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0"></i>
+      <span id="topBannerMessage">Pengingat: GAS_API_URL belum terhubung. Tempelkan URL Web App Google Apps Script pada file index.html untuk sinkronisasi live.</span>
+    </div>
+    <button onclick="closeBanner()" class="p-1 hover:bg-amber-700 rounded transition">
+      <i data-lucide="x" class="w-4 h-4"></i>
+    </button>
+  </div>
+
+  <div id="toastContainer" class="fixed top-5 right-5 z-[2000] space-y-3 pointer-events-none max-w-md w-full px-4"></div>
+
+  <div id="loadingOverlay" class="hidden fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center text-white space-y-4">
+    <div class="w-12 h-12 border-4 border-white/20 border-t-brand-500 rounded-full animate-spin"></div>
+    <p id="loadingText" class="text-sm font-semibold tracking-wide">Menghubungkan ke Server Google Sheets...</p>
+  </div>
+
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden transition-all duration-300">
+      <div class="p-8 text-center bg-gradient-to-br from-slate-900 via-slate-800 to-brand-800 text-white relative">
+        <div id="loginLogoPreviewContainer" class="mb-4 inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-2 shadow-inner overflow-hidden">
+          <img id="loginLogoImg" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/></svg>" alt="Logo" class="max-h-full object-contain rounded-lg">
+        </div>
+        <h1 class="text-xl font-bold tracking-tight">SISTEM INVENTARIS</h1>
+        <p class="text-xs text-slate-300 mt-1 font-medium">UPTD SPF SMP Negeri 1 Bondowoso</p>
+      </div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)" class="p-8 space-y-5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Nama Pengguna</label>
+          <div class="relative">
+            <i data-lucide="user" class="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" id="loginUsername" required class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm outline-none transition" placeholder="Masukkan username">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Kata Sandi</label>
+          <div class="relative">
+            <i data-lucide="lock" class="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="password" id="loginPassword" required class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm outline-none transition" placeholder="••••••••">
+          </div>
+        </div>
+
+        <button type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg shadow-lg shadow-brand-500/30 transition flex items-center justify-center space-x-2">
+          <span>Masuk ke Sistem</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div id="mainApp" class="hidden flex-1 flex flex-col md:flex-row min-h-screen">
+
+    <aside class="hidden md:flex flex-col w-64 bg-slate-900 text-slate-300 flex-shrink-0 border-r border-slate-800 shadow-xl">
+      <div class="p-5 border-b border-slate-800 flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-white/10 p-1 flex items-center justify-center border border-white/10 overflow-hidden flex-shrink-0">
+          <img id="sidebarLogoImg" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/></svg>" class="max-h-full object-contain">
+        </div>
+        <div class="overflow-hidden">
+          <h2 class="text-sm font-bold text-white tracking-tight truncate">INVENTARIS PRO</h2>
+          <p class="text-[10px] text-slate-400 truncate">SMPN 1 Bondowoso</p>
+        </div>
+      </div>
+
+      <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+        <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition text-white bg-brand-600/90 shadow-md">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+          <span>Dashboard</span>
+        </button>
+
+        <button onclick="switchTab('barang')" id="nav-barang" class="nav-btn w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition hover:bg-slate-800 text-slate-300">
+          <i data-lucide="box" class="w-4 h-4"></i>
+          <span>Data Barang</span>
+        </button>
+
+        <button onclick="switchTab('peminjaman')" id="nav-peminjaman" class="nav-btn w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition hover:bg-slate-800 text-slate-300">
+          <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
+          <span>Peminjaman</span>
+        </button>
+
+        <button onclick="switchTab('log')" id="nav-log" class="nav-btn w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition hover:bg-slate-800 text-slate-300">
+          <i data-lucide="history" class="w-4 h-4"></i>
+          <span>Log Aktivitas</span>
+        </button>
+
+        <button onclick="switchTab('pengaturan')" id="nav-pengaturan" class="nav-btn role-admin-only w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition hover:bg-slate-800 text-slate-300">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+          <span>Pengaturan</span>
+        </button>
+      </nav>
+
+      <div class="p-4 border-t border-slate-800 bg-slate-950/50">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3 overflow-hidden">
+            <div class="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-xs uppercase flex-shrink-0" id="userAvatar">
+              A
+            </div>
+            <div class="overflow-hidden">
+              <p class="text-xs font-semibold text-white truncate" id="userNameLabel">Pengguna</p>
+              <p class="text-[10px] text-slate-400 uppercase tracking-wider" id="userRoleBadge">ROLE</p>
+            </div>
+          </div>
+          <button onclick="handleLogout()" title="Keluar" class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-900 border-t border-slate-800 text-slate-400 flex justify-around p-2">
+      <button onclick="switchTab('dashboard')" id="mob-nav-dashboard" class="flex flex-col items-center text-brand-500 font-medium text-[10px] space-y-1">
+        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+        <span>Home</span>
+      </button>
+      <button onclick="switchTab('barang')" id="mob-nav-barang" class="flex flex-col items-center font-medium text-[10px] space-y-1">
+        <i data-lucide="box" class="w-5 h-5"></i>
+        <span>Barang</span>
+      </button>
+      <button onclick="switchTab('peminjaman')" id="mob-nav-peminjaman" class="flex flex-col items-center font-medium text-[10px] space-y-1">
+        <i data-lucide="arrow-left-right" class="w-5 h-5"></i>
+        <span>Pinjam</span>
+      </button>
+      <button onclick="switchTab('log')" id="mob-nav-log" class="flex flex-col items-center font-medium text-[10px] space-y-1">
+        <i data-lucide="history" class="w-5 h-5"></i>
+        <span>Log</span>
+      </button>
+      <button onclick="switchTab('pengaturan')" id="mob-nav-pengaturan" class="role-admin-only flex flex-col items-center font-medium text-[10px] space-y-1">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <span>Setting</span>
+      </button>
+    </div>
+
+    <main class="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
+      
+      <header class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-6 py-3.5 sticky top-0 z-30 flex items-center justify-between shadow-sm">
+        <div class="flex items-center space-x-3">
+          <h2 id="currentTabTitle" class="text-lg font-bold text-slate-800 tracking-tight">Dashboard Overview</h2>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+          <button onclick="fetchServerData(true)" title="Segarkan Data Server" class="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition active:scale-95">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
+            <span class="hidden sm:inline">Refresh Data</span>
+          </button>
+
+          <button onclick="openModal('qrScannerModal')" class="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow transition active:scale-95">
+            <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+            <span>Scan QR</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto">
+
+        <!-- TAB 1: DASHBOARD -->
+        <section id="tab-dashboard" class="tab-page space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition">
+              <div class="flex justify-between items-start">
+                <div>
+                  <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total SKU Barang</p>
+                  <h3 class="text-2xl font-black text-slate-800 mt-1" id="statTotalSKU">0</h3>
+                </div>
+                <div class="p-3 bg-blue-50 text-brand-600 rounded-xl">
+                  <i data-lucide="package" class="w-6 h-6"></i>
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-3">Barang terdaftar di spreadsheet</p>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition">
+              <div class="flex justify-between items-start">
+                <div>
+                  <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Fisik Unit</p>
+                  <h3 class="text-2xl font-black text-slate-800 mt-1" id="statTotalFisik">0</h3>
+                </div>
+                <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <i data-lucide="boxes" class="w-6 h-6"></i>
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-3">Kuantitas aset terdata</p>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition">
+              <div class="flex justify-between items-start">
+                <div>
+                  <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sedang Dipinjam</p>
+                  <h3 class="text-2xl font-black text-amber-600 mt-1" id="statSedangDipinjam">0</h3>
+                </div>
+                <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                  <i data-lucide="arrow-up-right" class="w-6 h-6"></i>
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-3">Transaksi aktif luar</p>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition">
+              <div class="flex justify-between items-start">
+                <div>
+                  <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Barang Rusak</p>
+                  <h3 class="text-2xl font-black text-red-600 mt-1" id="statBarangRusak">0</h3>
+                </div>
+                <div class="p-3 bg-red-50 text-red-600 rounded-xl">
+                  <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-3">Unit perbaikan/rusak</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-1 bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900 rounded-2xl p-6 text-white shadow-lg flex flex-col justify-between">
+              <div>
+                <span class="inline-block px-2.5 py-1 bg-white/10 text-white rounded-full text-[10px] font-semibold tracking-wider uppercase backdrop-blur-md mb-3 border border-white/10">Aksi Cepat</span>
+                <h3 class="text-xl font-bold">Peminjaman Barang</h3>
+                <p class="text-xs text-slate-300 mt-2 leading-relaxed">Catat transaksi peminjaman barang oleh siswa atau guru, terintegrasi otomatis dengan ketersediaan stok server.</p>
+              </div>
+
+              <div class="mt-6 space-y-2">
+                <button onclick="switchTab('peminjaman'); openModal('peminjamanModal');" class="w-full py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs rounded-xl shadow transition flex items-center justify-center space-x-2">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                  <span>Buat Peminjaman Baru</span>
+                </button>
+                <button onclick="openModal('qrScannerModal')" class="w-full py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs rounded-xl transition flex items-center justify-center space-x-2 border border-white/10">
+                  <i data-lucide="scan" class="w-4 h-4"></i>
+                  <span>Scan QR Kode Barang</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="text-base font-bold text-slate-800">Transaksi Peminjaman Terbaru</h3>
+                <button onclick="switchTab('peminjaman')" class="text-xs font-semibold text-brand-600 hover:underline">Lihat Semua</button>
+              </div>
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-slate-50 text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                    <tr>
+                      <th class="p-2.5">Peminjam</th>
+                      <th class="p-2.5">Barang</th>
+                      <th class="p-2.5">Batas Kembali</th>
+                      <th class="p-2.5 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboardRecentTable" class="divide-y divide-slate-100"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 2: DATA BARANG -->
+        <section id="tab-barang" class="tab-page hidden space-y-6">
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-3 justify-between items-center">
+            <div class="flex flex-1 w-full md:w-auto gap-2">
+              <div class="relative flex-1">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="searchBarang" oninput="debouncedSearchBarang()" placeholder="Cari nama barang / SKU / lokasi..." class="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none">
+              </div>
+              <select id="filterKondisi" onchange="renderBarangTable()" class="border border-slate-300 rounded-xl text-xs px-3 py-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                <option value="">Semua Kondisi</option>
+                <option value="Baik">Baik</option>
+                <option value="Rusak">Rusak</option>
+              </select>
+            </div>
+
+            <div class="flex items-center space-x-2 w-full md:w-auto justify-end flex-wrap gap-y-2">
+              <button onclick="downloadExcelTemplate()" class="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border border-slate-300 transition">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>Template Excel</span>
+              </button>
+
+              <label class="inline-flex items-center space-x-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl text-xs font-semibold cursor-pointer transition">
+                <i data-lucide="file-up" class="w-3.5 h-3.5"></i>
+                <span>Import Excel</span>
+                <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" onchange="handleImportExcel(event)" class="hidden">
+              </label>
+
+              <button onclick="exportBarangExcel()" class="inline-flex items-center space-x-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow transition">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                <span>Export Excel</span>
+              </button>
+
+              <button onclick="cetakGridA4Modal()" class="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold shadow transition">
+                <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                <span>Cetak Grid A4 QR</span>
+              </button>
+
+              <button onclick="openBarangModal()" class="inline-flex items-center space-x-1.5 px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold shadow transition">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>Tambah Barang</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th class="p-3.5">Foto</th>
+                    <th class="p-3.5">SKU / QR</th>
+                    <th class="p-3.5">Nama Barang</th>
+                    <th class="p-3.5">Kategori</th>
+                    <th class="p-3.5">Lokasi</th>
+                    <th class="p-3.5">Kondisi</th>
+                    <th class="p-3.5 text-center">Stok (Ada / Total)</th>
+                    <th class="p-3.5 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="barangTableBody" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 gap-2">
+              <span id="barangPaginationInfo">Menampilkan 0-0 data</span>
+              <div class="flex space-x-1">
+                <button onclick="prevBarangPage()" id="btnPrevBarang" class="px-3 py-1 bg-white border border-slate-300 rounded-lg font-medium hover:bg-slate-100 disabled:opacity-50">Prev</button>
+                <button onclick="nextBarangPage()" id="btnNextBarang" class="px-3 py-1 bg-white border border-slate-300 rounded-lg font-medium hover:bg-slate-100 disabled:opacity-50">Next</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 3: PEMINJAMAN -->
+        <section id="tab-peminjaman" class="tab-page hidden space-y-6">
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-3 justify-between items-center">
+            <div class="flex flex-1 w-full md:w-auto gap-2">
+              <div class="relative flex-1">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="searchPeminjaman" oninput="renderPeminjamanTable()" placeholder="Cari nama peminjam / NIK / barang..." class="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none">
+              </div>
+              <select id="filterStatusPeminjaman" onchange="renderPeminjamanTable()" class="border border-slate-300 rounded-xl text-xs px-3 py-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                <option value="">Semua Status</option>
+                <option value="DIPINJAM">Sedang Dipinjam</option>
+                <option value="DIKEMBALIKAN">Dikembalikan</option>
+              </select>
+            </div>
+
+            <button onclick="openModal('peminjamanModal')" class="w-full md:w-auto inline-flex items-center justify-center space-x-1.5 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold shadow transition">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+              <span>Transaksi Peminjaman</span>
+            </button>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th class="p-3.5">ID Transaksi</th>
+                    <th class="p-3.5">Peminjam (NIK)</th>
+                    <th class="p-3.5">Barang</th>
+                    <th class="p-3.5">Tgl Pinjam</th>
+                    <th class="p-3.5">Batas Kembali</th>
+                    <th class="p-3.5 text-center">Jumlah</th>
+                    <th class="p-3.5 text-center">Status</th>
+                    <th class="p-3.5 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="peminjamanTableBody" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 4: LOG AKTIVITAS -->
+        <section id="tab-log" class="tab-page hidden space-y-6">
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex justify-between items-center">
+            <h3 class="text-sm font-bold text-slate-800">Riwayat Audit Log System</h3>
+            <button onclick="exportLogPDF()" class="inline-flex items-center space-x-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold shadow transition">
+              <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+              <span>Export Laporan PDF</span>
+            </button>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th class="p-3.5">Waktu</th>
+                    <th class="p-3.5">Pengguna</th>
+                    <th class="p-3.5">Role</th>
+                    <th class="p-3.5">Aktivitas / Tindakan</th>
+                  </tr>
+                </thead>
+                <tbody id="logTableBody" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 5: PENGATURAN -->
+        <section id="tab-pengaturan" class="tab-page role-admin-only hidden space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+              <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2">
+                <i data-lucide="palette" class="w-5 h-5 text-brand-600"></i>
+                <span>Personalisasi Visual Application</span>
+              </h3>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-2">Pilih Warna Tema Aplikasi</label>
+                <div class="grid grid-cols-3 gap-2">
+                  <button onclick="setAppTheme('blue')" class="py-2 px-3 rounded-lg border text-xs font-medium bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100">Biru</button>
+                  <button onclick="setAppTheme('green')" class="py-2 px-3 rounded-lg border text-xs font-medium bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100">Hijau</button>
+                  <button onclick="setAppTheme('rose')" class="py-2 px-3 rounded-lg border text-xs font-medium bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100">Merah Rose</button>
+                  <button onclick="setAppTheme('teal')" class="py-2 px-3 rounded-lg border text-xs font-medium bg-teal-50 border-teal-300 text-teal-700 hover:bg-teal-100">Teal</button>
+                  <button onclick="setAppTheme('amber')" class="py-2 px-3 rounded-lg border text-xs font-medium bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100">Amber</button>
+                  <button onclick="setAppTheme('purple')" class="py-2 px-3 rounded-lg border text-xs font-medium bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100">Ungu</button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Logo Instansi / Perusahaan</label>
+                <input type="file" id="logoFileInput" accept="image/*" onchange="handleLogoUpload(event)" class="text-xs text-slate-500 block w-full file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+                <div class="mt-2 flex space-x-2">
+                  <input type="text" id="logoDriveUrlInput" placeholder="Atau tempel Link Sharing Google Drive Logo..." class="flex-1 px-3 py-1.5 border rounded-lg text-xs outline-none focus:ring-2 focus:ring-brand-500">
+                  <button onclick="applyDriveLogoUrl()" class="px-3 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded-lg hover:bg-slate-900">Terapkan Logo</button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Background App Landscape (File / Google Drive)</label>
+                <input type="file" id="bgFileInput" accept="image/*" onchange="handleBgUpload(event)" class="text-xs text-slate-500 block w-full file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+                
+                <div class="mt-2 flex space-x-2">
+                  <input type="text" id="bgDriveUrlInput" placeholder="Sertakan Link Sharing Google Drive..." class="flex-1 px-3 py-1.5 border rounded-lg text-xs outline-none focus:ring-2 focus:ring-brand-500">
+                  <button onclick="applyDriveBgUrl()" class="px-3 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded-lg hover:bg-slate-900">Terapkan URL</button>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">Gambar wajib berorientasi Horizontal / Landscape (Lebar > Tinggi).</p>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+              <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2">
+                <i data-lucide="database" class="w-5 h-5 text-brand-600"></i>
+                <span>Backup & Restore Terpusat Google Drive</span>
+              </h3>
+
+              <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <h4 class="text-xs font-bold text-slate-700">Backup Arsip JSON ke Google Drive</h4>
+                <p class="text-xs text-slate-500">Proses pencatatan snapshot database lengkap (Barang, Transaksi, Log) ke folder terpusat di Google Drive.</p>
+                <button onclick="executeGasBackup()" class="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-semibold shadow transition">
+                  Jalankan Backup ke Server
+                </button>
+              </div>
+
+              <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <h4 class="text-xs font-bold text-slate-700">Restore Data dari File Backup JSON</h4>
+                <input type="file" id="restoreFileInput" accept=".json" class="text-xs block w-full">
+                <button onclick="executeGasRestore()" class="w-full py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold shadow transition">
+                  Pulihkan Database (Restore)
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+
+      <footer class="bg-white/80 backdrop-blur-md border-t border-slate-200 p-4 text-center text-xs text-slate-500 font-medium">
+        &copy; ariefcaturk ; &reg; UPTD SPF SMP Negeri 1 Bondowoso
+      </footer>
+
+    </main>
+  </div>
+
+  <!-- MODAL: BARANG -->
+  <div id="barangModal" class="hidden fixed inset-0 z-[1000] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 flex flex-col max-h-[90vh]">
+      <div class="p-5 bg-slate-900 text-white flex justify-between items-center">
+        <h3 id="barangModalTitle" class="text-base font-bold">Tambah Barang Baru</h3>
+        <button onclick="closeModal('barangModal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form id="barangForm" onsubmit="saveBarang(event)" class="p-6 space-y-4 overflow-y-auto flex-1">
+        <input type="hidden" id="barangFormIndex" value="-1">
+        
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">SKU / Kode Barang Unik</label>
+          <input type="text" id="formSku" required class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="INV-2026-001">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Barang</label>
+          <input type="text" id="formNamaBarang" required class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Proyektor Epson EB-X400">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Kategori</label>
+            <input type="text" id="formKategori" required class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Elektronik">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Lokasi Penyimpanan</label>
+            <input type="text" id="formLokasi" required class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Lab Komputer 1">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Kondisi</label>
+            <select id="formKondisi" class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none">
+              <option value="Baik">Baik</option>
+              <option value="Rusak">Rusak</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Jumlah Stok Total</label>
+            <input type="number" id="formStok" min="1" required class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none" value="1">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Foto Barang (File Komputer / HP)</label>
+          <input type="file" id="formFotoInput" accept="image/*" onchange="previewImageCompress(event)" class="text-xs text-slate-500 block w-full">
+          <div class="mt-2">
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">Atau gunakan Link Sharing Google Drive Foto:</label>
+            <input type="text" id="formFotoDriveUrl" placeholder="https://drive.google.com/file/d/..." oninput="handleFotoDriveUrlInput()" class="w-full px-3 py-1.5 border rounded-lg text-xs outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <div id="fotoPreviewBox" class="mt-2 hidden">
+            <img id="fotoPreviewImg" src="" class="w-24 h-24 object-cover rounded-lg border">
+          </div>
+        </div>
+
+        <div class="pt-4 border-t flex justify-end space-x-2">
+          <button type="button" onclick="closeModal('barangModal')" class="px-4 py-2 border rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-semibold shadow">Simpan Data</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: PEMINJAMAN -->
+  <div id="peminjamanModal" class="hidden fixed inset-0 z-[1000] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100">
+      <div class="p-5 bg-slate-900 text-white flex justify-between items-center">
+        <h3 class="text-base font-bold">Transaksi Peminjaman Barang</h3>
+        <button onclick="closeModal('peminjamanModal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form id="peminjamanForm" onsubmit="savePeminjaman(event)" class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Pilih Barang yang Dipinjam</label>
+          <select id="formPinjamSku" required class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none"></select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Peminjam</label>
+          <input type="text" id="formNamaPeminjam" required class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Ahmad Subagja">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">NIK / No. Identitas</label>
+            <input type="text" id="formNikPeminjam" required class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="351101xxxx">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Jumlah Unit</label>
+            <input type="number" id="formJumlahPinjam" min="1" value="1" required class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Alamat Peminjam</label>
+          <textarea id="formAlamatPeminjam" required rows="2" class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Jl. Letnan Sutarman No. 10 Bondowoso"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Batas Tanggal Pengembalian</label>
+          <input type="date" id="formBatasTgl" required class="w-full px-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div class="pt-4 border-t flex justify-end space-x-2">
+          <button type="button" onclick="closeModal('peminjamanModal')" class="px-4 py-2 border rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-semibold shadow">Proses Transaksi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CETAK SINGLE QR -->
+  <div id="qrPrintModal" class="hidden fixed inset-0 z-[1000] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full overflow-hidden shadow-2xl border border-slate-100 p-6 text-center">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-sm font-bold text-slate-800">Cetak Label QR (Stiker 5 x 5 cm)</h3>
+        <button onclick="closeModal('qrPrintModal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div id="printArea" class="my-4 p-4 border border-dashed border-slate-300 rounded-xl inline-block bg-slate-50">
+        <div id="singleQrCodeContainer" class="flex justify-center mb-2"></div>
+        <p id="singleQrSku" class="text-xs font-bold text-slate-800 tracking-wider">INV-001</p>
+        <p id="singleQrNama" class="text-[10px] text-slate-500 truncate max-w-[150px]">Nama Barang</p>
+      </div>
+      <div class="flex justify-center space-x-2 mt-4">
+        <button onclick="closeModal('qrPrintModal')" class="px-4 py-2 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Batal</button>
+        <button onclick="window.print()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold shadow">Cetak Stiker</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: QR SCANNER -->
+  <div id="qrScannerModal" class="hidden fixed inset-0 z-[1000] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-100 p-6 text-center">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-sm font-bold text-slate-800">Scan QR Kode Barang</h3>
+        <button onclick="closeModal('qrScannerModal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="p-6 bg-slate-50 border border-dashed border-slate-300 rounded-xl my-4">
+        <i data-lucide="qr-code" class="w-16 h-16 text-brand-600 mx-auto mb-2 animate-pulse"></i>
+        <p class="text-xs text-slate-500">Pilih atau Masukkan SKU Barang untuk Simulasi Pemindaian Kamera QR</p>
+        <select id="simulatedScanSku" class="w-full mt-4 px-3 py-2 border rounded-xl text-xs focus:ring-2 focus:ring-brand-500 outline-none bg-white"></select>
+      </div>
+      <div class="flex justify-end space-x-2">
+        <button onclick="closeModal('qrScannerModal')" class="px-4 py-2 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Batal</button>
+        <button onclick="executeSimulatedScan()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold shadow">Proses Scan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: PREVIEW CETAK GRID A4 QR CODE -->
+  <div id="gridQrPreviewModal" class="hidden fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-4xl w-full h-[90vh] overflow-hidden shadow-2xl border border-slate-100 flex flex-col">
+      <div class="p-4 bg-slate-900 text-white flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="printer" class="w-5 h-5 text-brand-400"></i>
+          <h3 class="text-sm font-bold">Print Preview Grid A4 Label QR Code</h3>
+        </div>
+        <button onclick="closeModal('gridQrPreviewModal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      
+      <div class="flex-1 bg-slate-100 p-4 overflow-hidden flex flex-col items-center justify-center">
+        <iframe id="gridQrPreviewIframe" class="w-full h-full rounded-xl border border-slate-300 shadow-inner bg-white"></iframe>
+      </div>
+
+      <div class="p-4 bg-white border-t border-slate-200 flex justify-between items-center text-xs">
+        <span class="text-slate-500 font-medium">Periksa tampilan cetak A4 sebelum diunduh atau dicetak.</span>
+        <div class="flex space-x-2">
+          <button onclick="closeModal('gridQrPreviewModal')" class="px-4 py-2 border rounded-xl font-semibold text-slate-600 hover:bg-slate-100">Tutup</button>
+          <button onclick="downloadGridA4Pdf()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-semibold shadow flex items-center space-x-1.5">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Unduh PDF</span>
+          </button>
+          <button onclick="printGridA4Pdf()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-semibold shadow flex items-center space-x-1.5">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+            <span>Cetak Sekarang</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbw0Kk60Oc2hSTtmiV00LhAybyEcINwn-uJg0cZvoNBs2V2Iyhp9LNxBke6CbTBXHHHE/exec";
+
+    let barangList = [];
+    let peminjamanList = [];
+    let logList = [];
+    let currentUser = null;
+    let currentTheme = 'blue';
+
+    let barangPageIndex = 0;
+    const pageSize = 10;
+    let searchDebounceTimer = null;
+    let currentGridPdfDoc = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      checkGasUrlConfig();
+      checkAuthSession();
+    });
+
+    function checkGasUrlConfig() {
+      if (!GAS_API_URL || GAS_API_URL.includes("PASTE_YOUR")) {
+        openBanner();
+      } else {
+        closeBanner();
+      }
+    }
+
+    function checkAuthSession() {
+      const savedUser = localStorage.getItem('inv_user_session');
+      if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        renderAppUI();
+      } else {
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('mainApp').classList.add('hidden');
+      }
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const usernameInput = document.getElementById('loginUsername').value.trim();
+      const passwordInput = document.getElementById('loginPassword').value.trim();
+
+      showLoading(true, "Memverifikasi Kredensial...");
+
+      if (GAS_API_URL && !GAS_API_URL.includes("PASTE_YOUR")) {
+        try {
+          const res = await callGasApi({
+            action: 'LOGIN',
+            username: usernameInput,
+            password: passwordInput
+          });
+
+          showLoading(false);
+          if (res.status === 'success') {
+            currentUser = res.user;
+            localStorage.setItem('inv_user_session', JSON.stringify(currentUser));
+            showToast(`Selamat datang, ${currentUser.namaLengkap}`, 'success');
+            renderAppUI();
+          } else {
+            showToast(res.message || 'Login gagal, periksa username/password', 'error');
+          }
+        } catch (err) {
+          showLoading(false);
+          showToast('Gagal terhubung ke server Apps Script. Menggunakan mode otentikasi lokal.', 'error');
+          fallbackLocalAuth(usernameInput, passwordInput);
+        }
+      } else {
+        showLoading(false);
+        fallbackLocalAuth(usernameInput, passwordInput);
+      }
+    }
+
+    function fallbackLocalAuth(u, p) {
+      if (u === 'admin' && p === 'admin123') {
+        currentUser = { username: 'admin', role: 'Admin', namaLengkap: 'Administrator Main' };
+      } else if (u === 'petugas' && p === 'petugas123') {
+        currentUser = { username: 'petugas', role: 'Petugas', namaLengkap: 'Petugas Operasional' };
+      } else {
+        showToast('Username atau password tidak valid!', 'error');
+        return;
+      }
+      localStorage.setItem('inv_user_session', JSON.stringify(currentUser));
+      showToast(`Login Lokal Berhasil: ${currentUser.namaLengkap}`, 'success');
+      renderAppUI();
+    }
+
+    function handleLogout() {
+      localStorage.removeItem('inv_user_session');
+      currentUser = null;
+      document.getElementById('loginScreen').classList.remove('hidden');
+      document.getElementById('mainApp').classList.add('hidden');
+      showToast('Sesi login telah diakhiri', 'info');
+    }
+
+    function renderAppUI() {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('mainApp').classList.remove('hidden');
+
+      document.getElementById('userNameLabel').innerText = currentUser.namaLengkap;
+      document.getElementById('userRoleBadge').innerText = currentUser.role;
+      document.getElementById('userAvatar').innerText = currentUser.username.charAt(0).toUpperCase();
+
+      const adminElements = document.querySelectorAll('.role-admin-only');
+      adminElements.forEach(el => {
+        if (currentUser.role !== 'Admin') {
+          el.classList.add('hidden');
+        } else {
+          el.classList.remove('hidden');
+        }
+      });
+
+      fetchServerData();
+    }
+
+    async function callGasApi(payload, retryCount = 0) {
+      if (!GAS_API_URL || GAS_API_URL.includes("PASTE_YOUR")) {
+        throw new Error("URL_NOT_CONFIGURED");
+      }
+
+      try {
+        const response = await fetch(GAS_API_URL, {
+          method: 'POST',
+          redirect: 'follow',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        if (retryCount < 2) {
+          await new Promise(res => setTimeout(res, 1000));
+          return callGasApi(payload, retryCount + 1);
+        }
+        throw error;
+      }
+    }
+
+    async function fetchServerData(manualRefresh = false) {
+      const icon = document.getElementById('refreshIcon');
+      if (icon) icon.classList.add('animate-spin');
+
+      if (!GAS_API_URL || GAS_API_URL.includes("PASTE_YOUR")) {
+        if (icon) icon.classList.remove('animate-spin');
+        renderDashboardMetrics();
+        renderBarangTable();
+        renderPeminjamanTable();
+        renderLogTable();
+        updateScannerOptions();
+        if (manualRefresh) showToast('Mode Lokal: Konfigurasi Web App URL untuk sinkronisasi server', 'info');
+        return;
+      }
+
+      try {
+        showLoading(true, "Mengambil Data Server...");
+        const res = await callGasApi({ action: 'GET_ALL_DATA' });
+        showLoading(false);
+
+        if (res.status === 'success') {
+          barangList = res.barang || [];
+          peminjamanList = res.peminjaman || [];
+          logList = res.log || [];
+
+          renderDashboardMetrics();
+          renderBarangTable();
+          renderPeminjamanTable();
+          renderLogTable();
+          updateScannerOptions();
+
+          if (manualRefresh) showToast('Data sistem berhasil disinkronkan', 'success');
+        } else {
+          showToast('Gagal memuat data dari server: ' + res.message, 'error');
+        }
+      } catch (err) {
+        showLoading(false);
+        showToast('Terjadi kesalahan koneksi server Apps Script', 'error');
+      } finally {
+        if (icon) icon.classList.remove('animate-spin');
+      }
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-page').forEach(page => page.classList.add('hidden'));
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('bg-brand-600/90', 'text-white', 'shadow-md');
+        btn.classList.add('text-slate-300', 'hover:bg-slate-800');
+      });
+      const activeNav = document.getElementById(`nav-${tabName}`);
+      if (activeNav) {
+        activeNav.classList.add('bg-brand-600/90', 'text-white', 'shadow-md');
+        activeNav.classList.remove('text-slate-300', 'hover:bg-slate-800');
+      }
+
+      const titleMap = {
+        dashboard: 'Dashboard Overview',
+        barang: 'Manajemen Data Barang (Inventaris)',
+        peminjaman: 'Transaksi Peminjaman & Pengembalian',
+        log: 'Log Aktivitas & Riwayat Sistem',
+        pengaturan: 'Pengaturan Aplikasi & Backup'
+      };
+      document.getElementById('currentTabTitle').innerText = titleMap[tabName] || 'Dashboard';
+    }
+
+    function renderDashboardMetrics() {
+      document.getElementById('statTotalSKU').innerText = barangList.length;
+      document.getElementById('statTotalFisik').innerText = barangList.reduce((acc, b) => acc + (parseInt(b.stokTotal) || 0), 0);
+      document.getElementById('statSedangDipinjam').innerText = peminjamanList.filter(p => p.status === 'DIPINJAM').length;
+      document.getElementById('statBarangRusak').innerText = barangList.filter(b => b.kondisi === 'Rusak').length;
+
+      const tbody = document.getElementById('dashboardRecentTable');
+      tbody.innerHTML = '';
+
+      if (peminjamanList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400">Belum ada transaksi peminjaman</td></tr>`;
+        return;
+      }
+
+      peminjamanList.slice(0, 5).forEach(p => {
+        const badgeColor = p.status === 'DIPINJAM' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+        tbody.innerHTML += `
+          <tr>
+            <td class="p-2.5 font-medium">${p.namaPeminjam}</td>
+            <td class="p-2.5 text-slate-600">${p.namaBarang}</td>
+            <td class="p-2.5 text-slate-500">${p.tglBatas}</td>
+            <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor}">${p.status}</span></td>
+          </tr>
+        `;
+      });
+    }
+
+    function debouncedSearchBarang() {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        barangPageIndex = 0;
+        renderBarangTable();
+      }, 300);
+    }
+
+    function renderBarangTable() {
+      const tbody = document.getElementById('barangTableBody');
+      tbody.innerHTML = '';
+
+      const query = (document.getElementById('searchBarang').value || '').toLowerCase();
+      const kondisiFilter = document.getElementById('filterKondisi').value;
+
+      let filtered = barangList.filter(b => {
+        const matchQuery = (b.namaBarang || '').toLowerCase().includes(query) || (b.sku || '').toLowerCase().includes(query) || (b.lokasi || '').toLowerCase().includes(query);
+        const matchKondisi = kondisiFilter ? b.kondisi === kondisiFilter : true;
+        return matchQuery && matchKondisi;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">Tidak ada data barang ditemukan</td></tr>`;
+        document.getElementById('barangPaginationInfo').innerText = 'Menampilkan 0 data';
+        return;
+      }
+
+      const start = barangPageIndex * pageSize;
+      const paginated = filtered.slice(start, start + pageSize);
+
+      document.getElementById('barangPaginationInfo').innerText = `Menampilkan ${start + 1}-${Math.min(start + pageSize, filtered.length)} dari ${filtered.length} data`;
+      document.getElementById('btnPrevBarang').disabled = barangPageIndex === 0;
+      document.getElementById('btnNextBarang').disabled = start + pageSize >= filtered.length;
+
+      paginated.forEach((b) => {
+        const indexInMain = barangList.findIndex(item => item.sku === b.sku);
+        const kBadge = b.kondisi === 'Baik' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700';
+        const imgUrl = b.fotoUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50/80 transition">
+            <td class="p-3">
+              <img src="${imgUrl}" class="w-10 h-10 object-cover rounded-lg border bg-slate-100">
+            </td>
+            <td class="p-3 font-mono font-bold text-brand-700">${b.sku}</td>
+            <td class="p-3 font-medium text-slate-800">${b.namaBarang}</td>
+            <td class="p-3 text-slate-600">${b.kategori}</td>
+            <td class="p-3 text-slate-600">${b.lokasi}</td>
+            <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${kBadge}">${b.kondisi}</span></td>
+            <td class="p-3 text-center font-semibold">${b.stokTersedia} / ${b.stokTotal}</td>
+            <td class="p-3 text-right space-x-1">
+              <button onclick="cetakSingleQr('${b.sku}')" title="Cetak Label QR 5x5" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg"><i data-lucide="qr-code" class="w-3.5 h-3.5"></i></button>
+              <button onclick="editBarang(${indexInMain})" title="Edit Barang" class="p-1.5 bg-blue-50 hover:bg-blue-100 text-brand-600 rounded-lg"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+              <button onclick="deleteBarang(${indexInMain})" title="Hapus Barang" class="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+            </td>
+          </tr>
+        `;
+      });
+
+      lucide.createIcons();
+    }
+
+    function prevBarangPage() { if (barangPageIndex > 0) { barangPageIndex--; renderBarangTable(); } }
+    function nextBarangPage() { barangPageIndex++; renderBarangTable(); }
+
+    function openBarangModal() {
+      document.getElementById('barangModalTitle').innerText = 'Tambah Barang Baru';
+      document.getElementById('barangFormIndex').value = -1;
+      document.getElementById('barangForm').reset();
+      document.getElementById('formFotoDriveUrl').value = '';
+      document.getElementById('fotoPreviewBox').classList.add('hidden');
+      openModal('barangModal');
+    }
+
+    function editBarang(index) {
+      const b = barangList[index];
+      document.getElementById('barangModalTitle').innerText = 'Edit Data Barang';
+      document.getElementById('barangFormIndex').value = index;
+      document.getElementById('formSku').value = b.sku;
+      document.getElementById('formNamaBarang').value = b.namaBarang;
+      document.getElementById('formKategori').value = b.kategori;
+      document.getElementById('formLokasi').value = b.lokasi;
+      document.getElementById('formKondisi').value = b.kondisi;
+      document.getElementById('formStok').value = b.stokTotal;
+
+      if (b.fotoUrl && b.fotoUrl.includes('googleusercontent.com')) {
+        document.getElementById('formFotoDriveUrl').value = b.fotoUrl;
+      } else {
+        document.getElementById('formFotoDriveUrl').value = '';
+      }
+
+      if (b.fotoUrl) {
+        document.getElementById('fotoPreviewImg').src = b.fotoUrl;
+        document.getElementById('fotoPreviewBox').classList.remove('hidden');
+      } else {
+        document.getElementById('fotoPreviewBox').classList.add('hidden');
+      }
+
+      openModal('barangModal');
+    }
+
+    function handleFotoDriveUrlInput() {
+      const url = document.getElementById('formFotoDriveUrl').value.trim();
+      if (!url) return;
+
+      let directUrl = url;
+      if (url.includes('drive.google.com') && url.includes('/file/d/')) {
+        const fileId = url.split('/file/d/')[1].split('/')[0];
+        directUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
+      }
+
+      document.getElementById('fotoPreviewImg').src = directUrl;
+      document.getElementById('fotoPreviewBox').classList.remove('hidden');
+    }
+
+    async function saveBarang(e) {
+      e.preventDefault();
+      const idx = parseInt(document.getElementById('barangFormIndex').value);
+      const sku = document.getElementById('formSku').value.trim();
+      const nama = document.getElementById('formNamaBarang').value.trim();
+      const kategori = document.getElementById('formKategori').value.trim();
+      const lokasi = document.getElementById('formLokasi').value.trim();
+      const kondisi = document.getElementById('formKondisi').value;
+      const stok = parseInt(document.getElementById('formStok').value);
+      const previewImg = document.getElementById('fotoPreviewImg');
+      const fotoUrl = previewImg.src && !previewImg.src.includes('data:image/svg') ? previewImg.src : '';
+
+      const barangData = {
+        sku,
+        namaBarang: nama,
+        kategori,
+        lokasi,
+        kondisi,
+        stokTotal: stok,
+        stokTersedia: idx === -1 ? stok : Math.min(stok, barangList[idx].stokTersedia + (stok - barangList[idx].stokTotal)),
+        fotoUrl
+      };
+
+      showLoading(true, "Menyimpan Data Barang...");
+
+      if (GAS_API_URL && !GAS_API_URL.includes("PASTE_YOUR")) {
+        try {
+          const res = await callGasApi({
+            action: 'SAVE_BARANG',
+            barang: barangData,
+            username: currentUser.username
+          });
+          showLoading(false);
+          if (res.status === 'success') {
+            showToast('Data barang berhasil disimpan ke server', 'success');
+            closeModal('barangModal');
+            fetchServerData();
+          } else {
+            showToast('Gagal menyimpan: ' + res.message, 'error');
+          }
+        } catch (err) {
+          showLoading(false);
+          showToast('Error koneksi saat menyimpan barang', 'error');
+        }
+      } else {
+        showLoading(false);
+        if (idx === -1) {
+          barangList.push(barangData);
+        } else {
+          barangList[idx] = barangData;
+        }
+        showToast('Data disimpan secara lokal (Mode Standalone)', 'success');
+        closeModal('barangModal');
+        renderBarangTable();
+        renderDashboardMetrics();
+      }
+    }
+
+    async function deleteBarang(index) {
+      const b = barangList[index];
+      if (!confirm(`Hapus barang ${b.namaBarang} (${b.sku})?`)) return;
+
+      showLoading(true, "Menghapus Barang...");
+
+      if (GAS_API_URL && !GAS_API_URL.includes("PASTE_YOUR")) {
+        try {
+          const res = await callGasApi({
+            action: 'DELETE_BARANG',
+            sku: b.sku,
+            username: currentUser.username,
+            role: currentUser.role
+          });
+          showLoading(false);
+          if (res.status === 'success') {
+            showToast('Barang berhasil dihapus', 'info');
+            fetchServerData();
+          } else {
+            showToast('Gagal menghapus: ' + res.message, 'error');
+          }
+        } catch (err) {
+          showLoading(false);
+          showToast('Terjadi kesalahan koneksi', 'error');
+        }
+      } else {
+        showLoading(false);
+        barangList.splice(index, 1);
+        showToast('Barang dihapus secara lokal', 'info');
+        renderBarangTable();
+        renderDashboardMetrics();
+      }
+    }
+
+    function previewImageCompress(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxW = 800;
+          let w = img.width;
+          let h = img.height;
+
+          if (w > maxW) {
+            h = Math.round((h * maxW) / w);
+            w = maxW;
+          }
+
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          document.getElementById('fotoPreviewImg').src = compressedBase64;
+          document.getElementById('fotoPreviewBox').classList.remove('hidden');
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderPeminjamanTable() {
+      const tbody = document.getElementById('peminjamanTableBody');
+      tbody.innerHTML = '';
+
+      const query = (document.getElementById('searchPeminjaman').value || '').toLowerCase();
+      const statusFilter = document.getElementById('filterStatusPeminjaman').value;
+
+      let filtered = peminjamanList.filter(p => {
+        const matchQ = (p.namaPeminjam || '').toLowerCase().includes(query) || (p.nikPeminjam || '').toLowerCase().includes(query) || (p.namaBarang || '').toLowerCase().includes(query);
+        const matchS = statusFilter ? p.status === statusFilter : true;
+        return matchQ && matchS;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">Belum ada data transaksi peminjaman</td></tr>`;
+        return;
+      }
+
+      filtered.forEach((p) => {
+        const badge = p.status === 'DIPINJAM' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50/80 transition">
+            <td class="p-3 font-mono font-bold text-slate-700">${p.idTransaksi}</td>
+            <td class="p-3 font-medium text-slate-800">${p.namaPeminjam} <br><span class="text-[10px] text-slate-400 font-mono">${p.nikPeminjam}</span></td>
+            <td class="p-3 font-medium text-slate-800">${p.namaBarang} <br><span class="text-[10px] text-slate-400 font-mono">${p.sku}</span></td>
+            <td class="p-3 text-slate-600">${p.tglPinjam}</td>
+            <td class="p-3 text-slate-600">${p.tglBatas}</td>
+            <td class="p-3 text-center font-semibold">${p.jumlah}</td>
+            <td class="p-3 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badge}">${p.status}</span></td>
+            <td class="p-3 text-right">
+              ${p.status === 'DIPINJAM' ? `<button onclick="returnPeminjaman('${p.idTransaksi}')" title="Kembalikan Barang" class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold">Pengembalian</button>` : `<span class="text-[11px] text-slate-400 font-medium">Selesai (${p.tglKembali || '-'})</span>`}
+            </td>
+          </tr>
+        `;
+      });
+
+      lucide.createIcons();
+    }
+
+    async function savePeminjaman(e) {
+      e.preventDefault();
+      const sku = document.getElementById('formPinjamSku').value;
+      const nama = document.getElementById('formNamaPeminjam').value.trim();
+      const nik = document.getElementById('formNikPeminjam').value.trim();
+      const alamat = document.getElementById('formAlamatPeminjam').value.trim();
+      const tglBatas = document.getElementById('formBatasTgl').value;
+      const jumlah = parseInt(document.getElementById('formJumlahPinjam').value);
+
+      const targetBarang = barangList.find(b => b.sku === sku);
+      if (!targetBarang) {
+        showToast('Barang tidak ditemukan', 'error');
+        return;
+      }
+
+      if (targetBarang.stokTersedia < jumlah) {
+        showToast(`Stok tidak mencukupi (Tersedia: ${targetBarang.stokTersedia})`, 'error');
+        return;
+      }
+
+      showLoading(true, "Memproses Peminjaman...");
+
+      if (GAS_API_URL && !GAS_API_URL.includes("PASTE_YOUR")) {
+        try {
+          const res = await callGasApi({
+            action: 'SAVE_PEMINJAMAN',
+            sku,
+            namaBarang: targetBarang.namaBarang,
+            namaPeminjam: nama,
+            nikPeminjam: nik,
+            alamat,
+            tglBatas,
+            jumlah,
+            petugas: currentUser.username
+          });
+          showLoading(false);
+          if (res.status === 'success') {
+            showToast(`Peminjaman Berhasil! TRX ID: ${res.idTransaksi}`, 'success');
+            closeModal('peminjamanModal');
+            fetchServerData();
+          } else {
+            showToast('Gagal memproses: ' + res.message, 'error');
+          }
+        } catch (err) {
+          showLoading(false);
+          showToast('Error koneksi saat transaksi peminjaman', 'error');
+        }
+      } else {
+        showLoading(false);
+        const trxId = "TRX-" + Math.floor(100000 + Math.random() * 900000);
+        const today = new Date().toISOString().split("T")[0];
+        targetBarang.stokTersedia -= jumlah;
+
+        peminjamanList.unshift({
+          idTransaksi: trxId,
+          sku,
+          namaBarang: targetBarang.namaBarang,
+          namaPeminjam: nama,
+          nikPeminjam: nik,
+          alamat,
+          tglPinjam: today,
+          tglBatas,
+          tglKembali: "",
+          jumlah,
+          status: "DIPINJAM",
+          petugas: currentUser.username
+        });
+
+        showToast(`Peminjaman Berhasil (Lokal)! ID: ${trxId}`, 'success');
+        closeModal('peminjamanModal');
+        renderPeminjamanTable();
+        renderBarangTable();
+        renderDashboardMetrics();
+      }
+    }
+
+    async function returnPeminjaman(idTransaksi) {
+      if (!confirm(`Konfirmasi pengembalian transaksi ${idTransaksi}?`)) return;
+
+      showLoading(true, "Memproses Pengembalian...");
+
+      if (GAS_API_URL && !GAS_API_URL.includes("PASTE_YOUR")) {
+        try {
+          const res = await callGasApi({
+            action: 'RETURN_PEMINJAMAN',
+            idTransaksi,
+            username: currentUser.username
+          });
+          showLoading(false);
+          if (res.status === 'success') {
+            showToast('Pengembalian barang berhasil dicatat', 'success');
+            fetchServerData();
+          } else {
+            showToast('Gagal memproses pengembalian: ' + res.message, 'error');
+          }
+        } catch (err) {
+          showLoading(false);
+          showToast('Error koneksi saat pengembalian', 'error');
+        }
+      } else {
+        showLoading(false);
+        const trx = peminjamanList.find(p => p.idTransaksi === idTransaksi);
+        if (trx) {
+          trx.status = 'DIKEMBALIKAN';
+          trx.tglKembali = new Date().toISOString().split("T")[0];
+          const b = barangList.find(item => item.sku === trx.sku);
+          if (b) {
+            b.stokTersedia = Math.min(b.stokTotal, b.stokTersedia + trx.jumlah);
+          }
+        }
+        showToast('Pengembalian berhasil dicatat (Lokal)', 'success');
+        renderPeminjamanTable();
+        renderBarangTable();
+        renderDashboardMetrics();
+      }
+    }
+
+    function downloadExcelTemplate() {
+      const templateData = [
+        {
+          sku: "INV-2026-001",
+          namaBarang: "Proyektor Epson EB-X400",
+          kategori: "Elektronik",
+          kondisi: "Baik",
+          lokasi: "Ruang Lab Komputer 1",
+          stokTotal: 5,
+          stokTersedia: 5,
+          fotoUrl: "https://drive.google.com/file/d/xxxxxx/view"
+        },
+        {
+          sku: "INV-2026-002",
+          namaBarang: "Mikroskop Binokuler Digital",
+          kategori: "Laboratorium",
+          kondisi: "Baik",
+          lokasi: "Ruang Lab IPA",
+          stokTotal: 10,
+          stokTersedia: 10,
+          fotoUrl: ""
+        }
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "TemplateDataBarang");
+      XLSX.writeFile(wb, "Template_Import_Inventaris_Barang.xlsx");
+      showToast('Template Excel berhasil diunduh', 'success');
+    }
+
+    function handleImportExcel(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.SheetNames[0];
+          const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
+
+          if (!rows || rows.length === 0) {
+            showToast('File Excel kosong atau tidak terbaca', 'error');
+            return;
+          }
+
+          const parsedItems = rows.map(r => {
+            let photoUrl = r.fotoUrl || '';
+            if (photoUrl.includes('drive.google.com') && photoUrl.includes('/file/d/')) {
+              const fId = photoUrl.split('/file/d/')[1].split('/')[0];
+              photoUrl = `https://lh3.googleusercontent.com/d/${fId}`;
+            }
+
+            return {
+              sku: String(r.sku || '').trim(),
+              namaBarang: String(r.namaBarang || '').trim(),
+              kategori: String(r.kategori || 'Umum').trim(),
+              kondisi: String(r.kondisi || 'Baik').trim(),
+              lokasi: String(r.lokasi || 'Gudang Utama').trim(),
+              stokTotal: parseInt(r.stokTotal) || 1,
+              stokTersedia: parseInt(r.stokTersedia !== undefined ? r.stokTersedia : r.stokTotal) || 1,
+              fotoUrl: photoUrl
+            };
+          }).filter(item => item.sku && item.namaBarang);
+
+          if (parsedItems.length === 0) {
+            showToast('Format kolom Excel tidak sesuai template', 'error');
+            return;
+          }
+
+          showLoading(true, `Mengimpor ${parsedItems.length} Data Barang...`);
+
+          if (GAS_API_URL && !GAS_API_URL.includes("PASTE_YOUR")) {
+            const res = await callGasApi({
+              action: 'BULK_SAVE_BARANG',
+              barangList: parsedItems,
+              username: currentUser.username,
+              role: currentUser.role
+            });
+            showLoading(false);
+            if (res.status === 'success') {
+              showToast(`Berhasil mengimpor ${parsedItems.length} barang ke server!`, 'success');
+              fetchServerData();
+            } else {
+              showToast('Gagal import ke server: ' + res.message, 'error');
+            }
+          } else {
+            showLoading(false);
+            parsedItems.forEach(item => {
+              const idx = barangList.findIndex(b => b.sku === item.sku);
+              if (idx !== -1) {
+                barangList[idx] = item;
+              } else {
+                barangList.push(item);
+              }
+            });
+            showToast(`Berhasil mengimpor ${parsedItems.length} barang (Mode Lokal)`, 'success');
+            renderBarangTable();
+            renderDashboardMetrics();
+          }
+
+          e.target.value = '';
+        } catch (err) {
+          showLoading(false);
+          showToast('Terjadi kesalahan saat membaca file Excel', 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function cetakSingleQr(sku) {
+      const b = barangList.find(item => item.sku === sku);
+      if (!b) return;
+
+      document.getElementById('singleQrSku').innerText = b.sku;
+      document.getElementById('singleQrNama').innerText = b.namaBarang;
+      
+      const qrContainer = document.getElementById('singleQrCodeContainer');
+      qrContainer.innerHTML = '';
+      
+      new QRCode(qrContainer, {
+        text: b.sku,
+        width: 100,
+        height: 100,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+
+      openModal('qrPrintModal');
+    }
+
+    function generateQrBase64(text) {
+      return new Promise((resolve) => {
+        const tempDiv = document.createElement('div');
+        tempDiv.style.position = 'fixed';
+        tempDiv.style.top = '-9999px';
+        tempDiv.style.left = '-9999px';
+        tempDiv.style.visibility = 'hidden';
+        document.body.appendChild(tempDiv);
+        
+        new QRCode(tempDiv, {
+          text: text || 'N/A',
+          width: 150,
+          height: 150,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.H
+        });
+
+        setTimeout(() => {
+          let dataUrl = '';
+          const canvas = tempDiv.querySelector('canvas');
+          if (canvas) {
+            dataUrl = canvas.toDataURL('image/png');
+          } else {
+            const img = tempDiv.querySelector('img');
+            if (img && img.src) dataUrl = img.src;
+          }
+          if (document.body.contains(tempDiv)) {
+            document.body.removeChild(tempDiv);
+          }
+          resolve(dataUrl);
+        }, 60);
+      });
+    }
+
+    async function cetakGridA4Modal() {
+      if (barangList.length === 0) {
+        showToast('Tidak ada data barang untuk dicetak', 'info');
+        return;
+      }
+
+      showLoading(true, "Menyiapkan Print Preview A4...");
+
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.text("DAFTAR LABEL QR CODE INVENTARIS - UPTD SPF SMPN 1 BONDOWOSO", 10, 12);
+
+        let x = 12;
+        let y = 18;
+        let col = 0;
+
+        for (let idx = 0; idx < barangList.length; idx++) {
+          const b = barangList[idx];
+
+          // Bingkai Label 52mm x 52mm
+          doc.rect(x, y, 52, 52);
+
+          // Generate dan Render QR Code PNG ke PDF
+          const qrDataUrl = await generateQrBase64(b.sku);
+          if (qrDataUrl) {
+            doc.addImage(qrDataUrl, 'PNG', x + 7, y + 3, 38, 38);
+          }
+
+          // Label Teks SKU & Nama Barang
+          doc.setFontSize(8);
+          doc.setFont(undefined, 'bold');
+          doc.text(b.sku, x + 26, y + 44, { align: 'center' });
+          doc.setFont(undefined, 'normal');
+          doc.setFontSize(7);
+          doc.text((b.namaBarang || '').substring(0, 26), x + 26, y + 48, { align: 'center' });
+
+          x += 60;
+          col++;
+          if (col >= 3) {
+            col = 0;
+            x = 12;
+            y += 58;
+          }
+
+          if (y > 230 && idx < barangList.length - 1) {
+            doc.addPage();
+            x = 12;
+            y = 18;
+            col = 0;
+          }
+        }
+
+        currentGridPdfDoc = doc;
+        const pdfDataUri = doc.output('datauristring');
+
+        const iframe = document.getElementById('gridQrPreviewIframe');
+        iframe.src = pdfDataUri;
+
+        showLoading(false);
+        openModal('gridQrPreviewModal');
+      } catch (err) {
+        showLoading(false);
+        showToast('Gagal membuat preview PDF Grid QR', 'error');
+        console.error(err);
+      }
+    }
+
+    function downloadGridA4Pdf() {
+      if (currentGridPdfDoc) {
+        currentGridPdfDoc.save('Label_Grid_A4_Inventaris.pdf');
+        showToast('File PDF Grid QR A4 diunduh', 'success');
+      }
+    }
+
+    function printGridA4Pdf() {
+      const iframe = document.getElementById('gridQrPreviewIframe');
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } else if (currentGridPdfDoc) {
+        currentGridPdfDoc.autoPrint();
+        window.open(currentGridPdfDoc.output('bloburl'), '_blank');
+      }
+    }
+
+    function renderLogTable() {
+      const tbody = document.getElementById('logTableBody');
+      tbody.innerHTML = '';
+
+      if (logList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400">Belum ada aktivitas tercatat</td></tr>`;
+        return;
+      }
+
+      logList.forEach(l => {
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50/80 transition">
+            <td class="p-3 text-slate-500 font-mono">${l.timestamp || l.waktu || '-'}</td>
+            <td class="p-3 font-medium text-slate-800">${l.username || '-'}</td>
+            <td class="p-3 text-slate-600"><span class="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold">${l.role || 'User'}</span></td>
+            <td class="p-3 text-slate-700">${l.aktivitas || '-'}</td>
+          </tr>
+        `;
+      });
+    }
+
+    function exportLogPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(14);
+      doc.text("LAPORAN AUDIT LOG AKTIVITAS - INVENTARIS SMPN 1 BONDOWOSO", 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 14, 22);
+
+      let y = 30;
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.text("Waktu", 14, y);
+      doc.text("User", 60, y);
+      doc.text("Role", 90, y);
+      doc.text("Aktivitas", 120, y);
+      doc.line(14, y + 2, 196, y + 2);
+
+      y += 8;
+      doc.setFont(undefined, 'normal');
+
+      logList.slice(0, 30).forEach(l => {
+        if (y > 280) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(String(l.timestamp || '-').substring(0, 19), 14, y);
+        doc.text(String(l.username || '-'), 60, y);
+        doc.text(String(l.role || '-'), 90, y);
+        doc.text(String(l.aktivitas || '-').substring(0, 45), 120, y);
+        y += 7;
+      });
+
+      doc.save(`Laporan_Log_Inventaris_${new Date().toISOString().split('T')[0]}.pdf`);
+      showToast('Laporan PDF Log Aktivitas berhasil diunduh', 'success');
+    }
+
+    function exportBarangExcel() {
+      if (barangList.length === 0) {
+        showToast('Tidak ada data barang untuk diekspor', 'info');
+        return;
+      }
+      const ws = XLSX.utils.json_to_sheet(barangList);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "MasterBarang");
+      XLSX.writeFile(wb, `Export_Data_Barang_${new Date().toISOString().split('T')[0]}.xlsx`);
+      showToast('Data barang berhasil diekspor ke Excel', 'success');
+    }
+
+    function setAppTheme(themeName) {
+      currentTheme = themeName;
+      const root = document.documentElement;
+      const themeColors = {
+        blue: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af' },
+        green: { 50: '#f0fdf4', 100: '#dcfce7', 500: '#22c55e', 600: '#16a34a', 700: '#15803d', 800: '#166534' },
+        rose: { 50: '#fff1f2', 100: '#ffe4e6', 500: '#f43f5e', 600: '#e11d48', 700: '#be123c', 800: '#9f1239' },
+        teal: { 50: '#f0fdfa', 100: '#ccfbf1', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 800: '#115e59' },
+        amber: { 50: '#fffbeb', 100: '#fef3c7', 500: '#f59e0b', 600: '#d97706', 700: '#b45309', 800: '#92400e' },
+        purple: { 50: '#faf5ff', 100: '#f3e8ff', 500: '#a855f7', 600: '#9333ea', 700: '#7e22ce', 800: '#6b21a8' }
+      };
+
+      const selected = themeColors[themeName] || themeColors.blue;
+      Object.keys(selected).forEach(key => {
+        root.style.setProperty(`--color-brand-${key}`, selected[key]);
+      });
+      showToast(`Tema warna diubah ke: ${themeName.toUpperCase()}`, 'info');
+    }
+
+    function handleLogoUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        document.getElementById('loginLogoImg').src = evt.target.result;
+        document.getElementById('sidebarLogoImg').src = evt.target.result;
+        showToast('Logo instansi berhasil diperbarui', 'success');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function applyDriveLogoUrl() {
+      const url = document.getElementById('logoDriveUrlInput').value.trim();
+      if (!url) return;
+
+      let directUrl = url;
+      if (url.includes('drive.google.com') && url.includes('/file/d/')) {
+        const fileId = url.split('/file/d/')[1].split('/')[0];
+        directUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        document.getElementById('loginLogoImg').src = directUrl;
+        document.getElementById('sidebarLogoImg').src = directUrl;
+        showToast('Logo instansi dari Google Drive berhasil diterapkan', 'success');
+      };
+      img.onerror = () => {
+        showToast('Pastikan file logo Google Drive di-share "Anyone with the link"', 'error');
+      };
+      img.src = directUrl;
+    }
+
+    function handleBgUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const img = new Image();
+        img.onload = () => {
+          if (img.width < img.height) {
+            showToast('Peringatan: Gambar background harus berorientasi Landscape (Lebar > Tinggi)', 'error');
+            return;
+          }
+          document.getElementById('appBody').style.backgroundImage = `url('${evt.target.result}')`;
+          showToast('Background landscape berhasil diterapkan', 'success');
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function applyDriveBgUrl() {
+      const url = document.getElementById('bgDriveUrlInput').value.trim();
+      if (!url) return;
+
+      let directUrl = url;
+      if (url.includes('drive.google.com') && url.includes('/file/d/')) {
+        const fileId = url.split('/file/d/')[1].split('/')[0];
+        directUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        if (img.width < img.height) {
+          showToast('Peringatan: Gambar background Google Drive harus berorientasi Landscape (Lebar > Tinggi)', 'error');
+          return;
+        }
+        document.getElementById('appBody').style.backgroundImage = `url('${directUrl}')`;
+        showToast('Background landscape dari Google Drive berhasil diterapkan', 'success');
+      };
+      img.onerror = () => {
+        showToast('Gagal memuat gambar. Pastikan file Google Drive di-share "Anyone with the link"', 'error');
+      };
+      img.src = directUrl;
+    }
+
+    async function executeGasBackup() {
+      showLoading(true, "Mencatat Backup ke Server Google Drive...");
+
+      if (GAS_API_URL && !GAS_API_URL.includes("PASTE_YOUR")) {
+        try {
+          const res = await callGasApi({ action: 'BACKUP_DATA', username: currentUser.username });
+          showLoading(false);
+          if (res.status === 'success') {
+            showToast('Backup JSON berhasil disimpan di Google Drive!', 'success');
+          } else {
+            showToast('Gagal melakukan backup: ' + res.message, 'error');
+          }
+        } catch (err) {
+          showLoading(false);
+          showToast('Error koneksi saat backup', 'error');
+        }
+      } else {
+        showLoading(false);
+        showToast('Fitur backup memerlukan koneksi Google Apps Script', 'info');
+      }
+    }
+
+    async function executeGasRestore() {
+      const fileInput = document.getElementById('restoreFileInput');
+      if (!fileInput.files.length) {
+        showToast('Pilih file backup JSON terlebih dahulu', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const backupJson = JSON.parse(e.target.result);
+          showLoading(true, "Memulihkan Database...");
+
+          if (GAS_API_URL && !GAS_API_URL.includes("PASTE_YOUR")) {
+            const res = await callGasApi({
+              action: 'RESTORE_DATA',
+              backupData: backupJson,
+              username: currentUser.username
+            });
+            showLoading(false);
+            if (res.status === 'success') {
+              showToast('Pemulihan database berhasil!', 'success');
+              fetchServerData();
+            } else {
+              showToast('Gagal memulihkan: ' + res.message, 'error');
+            }
+          } else {
+            showLoading(false);
+            if (backupJson.barang) barangList = backupJson.barang;
+            if (backupJson.peminjaman) peminjamanList = backupJson.peminjaman;
+            showToast('Pemulihan lokal berhasil!', 'success');
+            renderBarangTable();
+            renderPeminjamanTable();
+          }
+        } catch (err) {
+          showLoading(false);
+          showToast('Format file JSON tidak valid', 'error');
+        }
+      };
+      reader.readAsText(fileInput.files[0]);
+    }
+
+    function updateScannerOptions() {
+      const sel = document.getElementById('simulatedScanSku');
+      const selPinjam = document.getElementById('formPinjamSku');
+      if (!sel || !selPinjam) return;
+
+      sel.innerHTML = '';
+      selPinjam.innerHTML = '';
+
+      if (barangList.length === 0) {
+        sel.innerHTML = `<option value="">Belum ada barang terdata</option>`;
+        selPinjam.innerHTML = `<option value="">Belum ada barang terdata</option>`;
+        return;
+      }
+
+      barangList.forEach(b => {
+        sel.innerHTML += `<option value="${b.sku}">${b.sku} - ${b.namaBarang}</option>`;
+        selPinjam.innerHTML += `<option value="${b.sku}">${b.sku} - ${b.namaBarang} (Tersedia: ${b.stokTersedia})</option>`;
+      });
+    }
+
+    function executeSimulatedScan() {
+      const sku = document.getElementById('simulatedScanSku').value;
+      if (!sku) return;
+      closeModal('qrScannerModal');
+      switchTab('barang');
+      document.getElementById('searchBarang').value = sku;
+      debouncedSearchBarang();
+      showToast(`Scan Berhasil: SKU ${sku}`, 'success');
+    }
+
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    function closeBanner() { document.getElementById('topBanner').classList.add('hidden'); }
+    function openBanner() { document.getElementById('topBanner').classList.remove('hidden'); }
+
+    function showLoading(show, text = "Memuat...") {
+      const el = document.getElementById('loadingOverlay');
+      document.getElementById('loadingText').innerText = text;
+      if (show) el.classList.remove('hidden'); else el.classList.add('hidden');
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      const colors = {
+        success: 'bg-emerald-600 text-white',
+        error: 'bg-red-600 text-white',
+        info: 'bg-slate-800 text-white'
+      };
+
+      toast.className = `p-3.5 rounded-xl shadow-xl font-medium text-xs flex items-center justify-between space-x-3 pointer-events-auto transition-all transform duration-300 ${colors[type] || colors.info}`;
+      toast.innerHTML = `
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()" class="opacity-70 hover:opacity-100"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+      `;
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      setTimeout(() => { toast.remove(); }, 4000);
+    }
+  </script>
+</body>
+</html>
